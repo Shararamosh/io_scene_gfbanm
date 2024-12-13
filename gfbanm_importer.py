@@ -148,8 +148,8 @@ def apply_animation_to_tracks(
         apply_track_transforms_to_posebone(
             context, pose_bone, list(zip(t_list, r_list, s_list)),invert_z_location,zxy_location_mode
         )
-
-    context.scene.frame_end = context.scene.frame_start + key_frames - 1
+    context.scene.frame_start = 0
+    context.scene.frame_end = context.scene.frame_start + key_frames
 
 
 def apply_track_transforms_to_posebone(
@@ -181,7 +181,7 @@ def apply_track_transforms_to_posebone(
                 locz = -locz
             pose_bone.location = Vector((locz, -locx, -locy))
         pose_bone.rotation_quaternion = rot.conjugated() @ transform[1]
-        pose_bone.scale = Vector((transform[2].x / scale.x, transform[2].y / scale.y, transform[2].z / scale.z))
+        pose_bone.scale = Vector((transform[2].x, transform[2].y, transform[2].z))
         pose_bone.keyframe_insert(data_path="location", frame=i)
         pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=i)
         pose_bone.keyframe_insert(data_path="scale", frame=i)
