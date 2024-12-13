@@ -30,19 +30,14 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
     directory: StringProperty()
     filter_glob: StringProperty(default="*.gfbanm;*.tranm", options={'HIDDEN'})
     files: CollectionProperty(type=bpy.types.PropertyGroup)
-    euler_rotation_mode: EnumProperty(
-        name="Euler Rotation Mode",
-        items=(("XYZ", "XYZ Euler", "XYZ Euler"),
-               ("XZY", "XZY Euler", "XZY Euler"),
-               ("YXZ", "YXZ Euler", "YXZ Euler"),
-               ("YZX", "YZX Euler", "YZX Euler"),
-               ("ZXY", "ZXY Euler", "ZXY Euler"),
-               ("ZYX", "ZYX Euler", "ZYX Euler")),
-        description="Euler Rotation Mode for Rotation Keyframes"
+    zxy_location_mode: BoolProperty(
+        name="Use ZXY",
+        description="Use ZXY instead of XYZ for Location",
+        default=False
     )
-    invert_x_location: BoolProperty(
-        name="Invert X Location",
-        description="Invert the X Location",
+    invert_z_location: BoolProperty(
+        name="Invert Z Location (Only if ZXY)",
+        description="Invert the Z Location",
         default=False
     )
 
@@ -58,7 +53,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
             for file in self.files:
                 try:
                     import_animation(context, os.path.join(str(self.directory), file.name),
-                                     self.euler_rotation_mode, self.invert_x_location)
+                                     self.zxy_location_mode, self.invert_z_location)
                 except OSError as e:
                     self.report({"INFO"}, "Failed to import " + file + ".\n" + str(e))
                 else:
@@ -69,7 +64,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                 return {"FINISHED"}
             return {"CANCELLED"}
         try:
-            import_animation(context, self.filepath, self.euler_rotation_mode, self.invert_x_location)
+            import_animation(context, self.filepath, self.zxy_location_mode, self.invert_z_location)
         except OSError as e:
             self.report({"ERROR"}, "Failed to import " + self.filepath + ".\n" + str(e))
             return {"CANCELLED"}
@@ -90,9 +85,8 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         :param _context: Blender's context.
         """
         box = self.layout.box()
-        box.prop(self, "euler_rotation_mode", text="Euler Rotation Mode")
-        box = self.layout.box()
-        box.prop(self, "invert_x_location", text="Invert X Location")
+        box.prop(self, "zxy_location_mode", text="ZXY Axis")
+        box.prop(self, "invert_z_location", text="Invert Z Location (Only if ZXY)")
 
 def menu_func_import(operator: bpy.types.Operator, _context: bpy.types.Context):
     """
