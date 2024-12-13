@@ -32,6 +32,7 @@ def import_animation(
     context: bpy.types.Context,
     file_path: str,
     euler_rotation_mode: str,
+    invert_x_location: bool,
 ):
     """
     Imports animation from processing gfbanm file.
@@ -83,6 +84,7 @@ def import_animation(
             anm.info.frameRate,
             anm.info.keyFrames,
             anm.skeleton.tracks,
+            invert_x_location,
         )
         for bone, select in select_bones.items():
             bone.select = select
@@ -98,6 +100,7 @@ def apply_animation_to_tracks(
     frame_rate: int,
     key_frames: int,
     tracks: list[BoneTrackT | None],
+    invert_x_location: bool,
 ):
     """
     Applies animation to bones of selected Armature.
@@ -142,7 +145,7 @@ def apply_animation_to_tracks(
             context.scene.render.fps_base = 1.0
 
         apply_track_transforms_to_posebone(
-            context, pose_bone, list(zip(t_list, r_list, s_list))
+            context, pose_bone, list(zip(t_list, r_list, s_list)),invert_x_location
         )
 
     context.scene.frame_end = context.scene.frame_start + key_frames - 1
@@ -152,6 +155,7 @@ def apply_track_transforms_to_posebone(
     context: bpy.types.Context,
     pose_bone: bpy.types.PoseBone,
     transforms: list[(Vector | None, Quaternion | None, Vector | None)],
+    invert_x_location: bool,
 ):
     """
     Applies global transforms to PoseBone for every keyframe of animation.
@@ -160,16 +164,18 @@ def apply_track_transforms_to_posebone(
     :param transforms: List of (Location, Rotation, Scaling) global transform tuples.
     :param print_first_frame_transforms_info: Print information about applied first frame transforms or not.
     """
-
-    matrix = pose_bone.bone.matrix_local
-
-    if pose_bone.parent:    
-        matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
-    
-    loc, rot, scale = matrix.decompose()
-
     for i, transform in enumerate(transforms):
-        pose_bone.location = transform[0] - loc
+        matrix = pose_bone.bone.matrix_local
+        if pose_bone.parent:    
+            matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
+        
+        loc, rot, scale = matrix.decompose()
+        locx = transform[0][2] - loc[2] 
+        locy = transform[0][0] - loc[0]
+        locz = transform[0][1] - loc[1]
+        if invert_x_location == True:
+            locx = -locx
+        pose_bone.location = Vector((locx, -locy, -locz))
         pose_bone.rotation_quaternion = rot.conjugated() @ transform[1]
         pose_bone.scale = Vector((transform[2].x / scale.x, transform[2].y / scale.y, transform[2].z / scale.z))
         pose_bone.keyframe_insert(data_path="location", frame=i)
