@@ -1,15 +1,13 @@
-# WIP GFBANM Blender Importer
+# Pokémon Switch Animation Blender Importer
 
-This is Blender 2.80+ addon for importing single or multiple .gfbanm files from Pokémon Sword/Shield video games.
+This is Blender 2.80+ addon for importing single or multiple animation files from the Pokémon games in Nintendo Switch (Pokémon Sword/Shield, Lets GO Pikachu/Eevee, Legends Arceus and Scarlet Violet).
 ## Dependencies:
 - [Flatbuffers library](https://pypi.org/project/flatbuffers/) (the addon will attempt installing it using pip if not detected)
-## Seems to be working:
+## Currently Working:
 - Skeleton:
   - Translation transforms
   - Scaling transforms
-## Currently working incorrectly:
-- Skeleton:
-  - Rotation transforms (affect Translation transforms)
+  - Rotation transforms
 ## Not implemented:
 - Material flags
 - Event data
