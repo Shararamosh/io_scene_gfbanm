@@ -31,8 +31,8 @@ from GFLib.Anim.sVec3 import sVec3T
 def import_animation(
     context: bpy.types.Context,
     file_path: str,
-    euler_rotation_mode: str,
-    invert_x_location: bool,
+    zxy_location_mode: bool,
+    invert_z_location: bool,
 ):
     """
     Imports animation from processing gfbanm file.
@@ -46,7 +46,6 @@ def import_animation(
     print("Armature name: " + context.object.name + ".")
     anim_name = os.path.splitext(os.path.basename(file_path))[0]
     print("Animation name: " + anim_name + ".")
-    print("Euler Rotation Mode: " + euler_rotation_mode + ".")
     with open(file_path, "rb") as file:
         anm = AnimationT.InitFromPackedBuf(bytearray(file.read()), 0)
         if anm.info is None:
@@ -84,7 +83,8 @@ def import_animation(
             anm.info.frameRate,
             anm.info.keyFrames,
             anm.skeleton.tracks,
-            invert_x_location,
+            invert_z_location,
+            zxy_location_mode,
         )
         for bone, select in select_bones.items():
             bone.select = select
@@ -100,7 +100,8 @@ def apply_animation_to_tracks(
     frame_rate: int,
     key_frames: int,
     tracks: list[BoneTrackT | None],
-    invert_x_location: bool,
+    invert_z_location: bool,
+    zxy_location_mode: bool,
 ):
     """
     Applies animation to bones of selected Armature.
@@ -145,7 +146,7 @@ def apply_animation_to_tracks(
             context.scene.render.fps_base = 1.0
 
         apply_track_transforms_to_posebone(
-            context, pose_bone, list(zip(t_list, r_list, s_list)),invert_x_location
+            context, pose_bone, list(zip(t_list, r_list, s_list)),invert_z_location,zxy_location_mode
         )
 
     context.scene.frame_end = context.scene.frame_start + key_frames - 1
@@ -155,7 +156,8 @@ def apply_track_transforms_to_posebone(
     context: bpy.types.Context,
     pose_bone: bpy.types.PoseBone,
     transforms: list[(Vector | None, Quaternion | None, Vector | None)],
-    invert_x_location: bool,
+    invert_z_location: bool,
+    zxy_location_mode: bool,
 ):
     """
     Applies global transforms to PoseBone for every keyframe of animation.
@@ -164,18 +166,20 @@ def apply_track_transforms_to_posebone(
     :param transforms: List of (Location, Rotation, Scaling) global transform tuples.
     :param print_first_frame_transforms_info: Print information about applied first frame transforms or not.
     """
+    matrix = pose_bone.bone.matrix_local
+    if pose_bone.parent:
+        matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
+    loc, rot, scale = matrix.decompose()
     for i, transform in enumerate(transforms):
-        matrix = pose_bone.bone.matrix_local
-        if pose_bone.parent:    
-            matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
-        
-        loc, rot, scale = matrix.decompose()
-        locx = transform[0][2] - loc[2] 
-        locy = transform[0][0] - loc[0]
-        locz = transform[0][1] - loc[1]
-        if invert_x_location == True:
-            locx = -locx
-        pose_bone.location = Vector((locx, -locy, -locz))
+
+        locz = transform[0][2] - loc[2] 
+        locx = transform[0][0] - loc[0]
+        locy = transform[0][1] - loc[1]
+        pose_bone.location = Vector((locx, locy, locz))
+        if zxy_location_mode == True:
+            if invert_z_location == True:
+                locz = -locz
+            pose_bone.location = Vector((locz, -locx, -locy))
         pose_bone.rotation_quaternion = rot.conjugated() @ transform[1]
         pose_bone.scale = Vector((transform[2].x / scale.x, transform[2].y / scale.y, transform[2].z / scale.z))
         pose_bone.keyframe_insert(data_path="location", frame=i)
