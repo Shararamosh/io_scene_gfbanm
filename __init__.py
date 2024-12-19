@@ -30,17 +30,11 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
     directory: StringProperty()
     filter_glob: StringProperty(default="*.gfbanm;*.tranm", options={'HIDDEN'})
     files: CollectionProperty(type=bpy.types.PropertyGroup)
-    zxy_location_mode: BoolProperty(
-        name="Use ZXY",
-        description="Use ZXY instead of XYZ for Location",
+    ignore_origin_location: BoolProperty(
+        name="Ignore Origin Location",
+        description="Ignore Origin Location",
         default=False
     )
-    invert_z_location: BoolProperty(
-        name="Invert Z Location (Only if ZXY)",
-        description="Invert the Z Location",
-        default=False
-    )
-
     def execute(self, context: bpy.types.Context):
         if not attempt_install_flatbuffers(self):
             self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
@@ -52,8 +46,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
             b = False
             for file in self.files:
                 try:
-                    import_animation(context, os.path.join(str(self.directory), file.name),
-                                     self.zxy_location_mode, self.invert_z_location)
+                    import_animation(context, os.path.join(str(self.directory), file.name), self.ignore_origin_location)
                 except OSError as e:
                     self.report({"INFO"}, "Failed to import " + file + ".\n" + str(e))
                 else:
@@ -64,7 +57,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                 return {"FINISHED"}
             return {"CANCELLED"}
         try:
-            import_animation(context, self.filepath, self.zxy_location_mode, self.invert_z_location)
+            import_animation(context, self.filepath, self.ignore_origin_location)
         except OSError as e:
             self.report({"ERROR"}, "Failed to import " + self.filepath + ".\n" + str(e))
             return {"CANCELLED"}
@@ -85,8 +78,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         :param _context: Blender's context.
         """
         box = self.layout.box()
-        box.prop(self, "zxy_location_mode", text="ZXY Axis")
-        box.prop(self, "invert_z_location", text="Invert Z Location (Only if ZXY)")
+        box.prop(self, "ignore_origin_location", text="Ignore Origin Location")
 
 def menu_func_import(operator: bpy.types.Operator, _context: bpy.types.Context):
     """
