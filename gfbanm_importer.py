@@ -166,11 +166,12 @@ def apply_track_transforms_to_posebone(
     :param transforms: List of (Location, Rotation, Scaling) global transform tuples.
     :param print_first_frame_transforms_info: Print information about applied first frame transforms or not.
     """
+    pose_bone.bone.use_local_location = False
     matrix = pose_bone.bone.matrix_local
     if pose_bone.parent:
         matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
     loc, rot, scale = matrix.decompose()
-
+    
     for i, transform in enumerate(transforms):
         locx = transform[0][0] - loc[0]
         locy = transform[0][1] - loc[1]
@@ -181,7 +182,7 @@ def apply_track_transforms_to_posebone(
                 pose_bone.location = Vector((locx, locy, locz))
         else:
             pose_bone.location = Vector((locx, locy, locz))
-            
+
         pose_bone.rotation_quaternion = rot.conjugated() @ transform[1]
         pose_bone.scale = Vector(transform[2])
         
