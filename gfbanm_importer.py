@@ -145,23 +145,27 @@ def apply_track_transforms_to_posebone(
         matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
     loc, rot, _ = matrix.decompose()
     for i, transform in enumerate(transforms):
-        has_transform = False
+        has_location = False
+        has_rotation = False
+        has_scale = False
         if transform[0] is not None:
             loc_x = transform[0][0] - loc[0]
             loc_y = transform[0][1] - loc[1]
             loc_z = transform[0][2] - loc[2]
             if not ignore_origin_location or pose_bone.bone.name.casefold() != "Origin".casefold():
                 pose_bone.location = Vector((loc_x, loc_y, loc_z))
-            has_transform = True
+            has_location = True
         if transform[1] is not None:
             pose_bone.rotation_quaternion = rot.conjugated() @ transform[1]
-            has_transform = True
+            has_rotation = True
         if transform[2] is not None:
             pose_bone.scale = Vector(transform[2])
-            has_transform = True
-        if has_transform:
+            has_scale = True
+        if has_location:
             pose_bone.keyframe_insert(data_path="location", frame=i)
+        if has_rotation:
             pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=i)
+        if has_scale:
             pose_bone.keyframe_insert(data_path="scale", frame=i)
 
 
