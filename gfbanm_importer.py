@@ -6,6 +6,7 @@ import os
 import sys
 import math
 import logging
+from typing import List, Union, Tuple, Optional
 
 import bpy
 from mathutils import Vector, Euler, Quaternion, Matrix
@@ -27,12 +28,11 @@ from GFLib.Anim.BoneTrack import BoneTrackT
 from GFLib.Anim.Vec3 import Vec3T
 from GFLib.Anim.sVec3 import sVec3T
 
-
+TransformType = Union[Tuple[float, float, float], Quaternion, None]
 def import_animation(
     context: bpy.types.Context,
     file_path: str,
-    zxy_location_mode: bool,
-    invert_z_location: bool,
+    ignore_origin_location: bool,
 ):
     """
     Imports animation from processing gfbanm file.
@@ -83,8 +83,7 @@ def import_animation(
             anm.info.frameRate,
             anm.info.keyFrames,
             anm.skeleton.tracks,
-            invert_z_location,
-            zxy_location_mode,
+            ignore_origin_location,
         )
         for bone, select in select_bones.items():
             bone.select = select
@@ -92,7 +91,10 @@ def import_animation(
             context.scene.frame_set(previous_frame)
         if previous_mode != context.object.mode:
             bpy.ops.object.mode_set(mode=previous_mode)
-
+def swizzle_vector3(X,Y,Z):    
+    return Vector((-X,-Z,Y))
+def swizzle_vector(vec):
+    return swizzle_vector3(vec.X, vec.Y, vec.Z)
 
 def apply_animation_to_tracks(
     context: bpy.types.Context,
@@ -100,8 +102,7 @@ def apply_animation_to_tracks(
     frame_rate: int,
     key_frames: int,
     tracks: list[BoneTrackT | None],
-    invert_z_location: bool,
-    zxy_location_mode: bool,
+    ignore_origin_location: bool,
 ):
     """
     Applies animation to bones of selected Armature.
@@ -131,9 +132,9 @@ def apply_animation_to_tracks(
 
         pose_bone = context.object.pose.bones[track.name]
 
-        t_list = get_vector_track_transforms(track.translate, key_frames)
-        s_list = get_vector_track_transforms(track.scale, key_frames)
-        r_list = get_rotation_track_transforms(track.rotate, key_frames)
+        t_list = get_track_transforms(track.translate, key_frames,"vector")
+        s_list = get_track_transforms(track.scale, key_frames,"vector")
+        r_list = get_track_transforms(track.rotate, key_frames,"rotation")
 
         if context.object.animation_data is None:
             context.object.animation_data_create()
@@ -146,7 +147,7 @@ def apply_animation_to_tracks(
             context.scene.render.fps_base = 1.0
 
         apply_track_transforms_to_posebone(
-            context, pose_bone, list(zip(t_list, r_list, s_list)),invert_z_location,zxy_location_mode
+            context, pose_bone, list(zip(t_list, r_list, s_list)),ignore_origin_location
         )
     context.scene.frame_start = 0
     context.scene.frame_end = context.scene.frame_start + key_frames
@@ -155,9 +156,8 @@ def apply_animation_to_tracks(
 def apply_track_transforms_to_posebone(
     context: bpy.types.Context,
     pose_bone: bpy.types.PoseBone,
-    transforms: list[(Vector | None, Quaternion | None, Vector | None)],
-    invert_z_location: bool,
-    zxy_location_mode: bool,
+    transforms: list[(tuple[float, float, float] | None, Quaternion | None, Vector | None)],
+    ignore_origin_location: bool,
 ):
     """
     Applies global transforms to PoseBone for every keyframe of animation.
@@ -170,22 +170,24 @@ def apply_track_transforms_to_posebone(
     if pose_bone.parent:
         matrix = pose_bone.parent.bone.matrix_local.inverted() @ matrix
     loc, rot, scale = matrix.decompose()
-    for i, transform in enumerate(transforms):
 
-        locz = transform[0][2] - loc[2] 
+    for i, transform in enumerate(transforms):
         locx = transform[0][0] - loc[0]
         locy = transform[0][1] - loc[1]
-        pose_bone.location = Vector((locx, locy, locz))
-        if zxy_location_mode == True:
-            if invert_z_location == True:
-                locz = -locz
-            pose_bone.location = Vector((locz, -locx, -locy))
+        locz = transform[0][2] - loc[2]
+
+        if pose_bone.bone.name == "origin":
+            if ignore_origin_location == False:
+                pose_bone.location = Vector((locx, locy, locz))
+        else:
+            pose_bone.location = Vector((locx, locy, locz))
+            
         pose_bone.rotation_quaternion = rot.conjugated() @ transform[1]
-        pose_bone.scale = Vector((transform[2].x, transform[2].y, transform[2].z))
+        pose_bone.scale = Vector(transform[2])
+        
         pose_bone.keyframe_insert(data_path="location", frame=i)
         pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=i)
         pose_bone.keyframe_insert(data_path="scale", frame=i)
-
 
 def get_posebone_global_matrix(pose_bone: bpy.types.PoseBone) -> Matrix:
     """
@@ -211,78 +213,63 @@ def set_posebone_global_matrix(pose_bone: bpy.types.PoseBone, m: Matrix):
     pose_bone.matrix = pose_bone.id_data.matrix_world.inverted() @ m
 
 
-def get_vector_track_transforms(
-    track: (
-        DynamicVectorTrackT
-        | FixedVectorTrackT
-        | Framed16VectorTrackT
-        | Framed8VectorTrackT
-        | None
-    ),
+def get_track_transforms(
+    track: Union[
+        "DynamicVectorTrackT", "FixedVectorTrackT", "Framed16VectorTrackT", "Framed8VectorTrackT",
+        "DynamicRotationTrackT", "FixedRotationTrackT", "Framed16RotationTrackT", "Framed8RotationTrackT",
+        None
+    ],
     key_frames: int,
-) -> list[Vector | None]:
+    track_type: str
+) -> List[TransformType]:
     """
-    Returns list with transforms from VectorTrack object.
-    :param track: VectorTrack object.
-    :param key_frames: Amount of keyframes in animation.
-    :return: List of Vectors or None.
-    """
+    Generalized function to extract track transforms (vector or rotation).
 
+    :param track: The track object containing keyframe data.
+    :param key_frames: Total number of keyframes in the animation.
+    :param track_type: Type of track - 'vector' or 'rotation'.
+    :return: List of transforms as tuples (x, y, z) for vectors or Quaternions for rotations.
+    """
     assert key_frames > 0, "Keyframes amount is less than 1."
-    transforms: list[Vector | None] = [None] * key_frames
+    transforms: List[TransformType] = [None] * key_frames
 
-    if track is None or track.co is None:
+    if track is None or getattr(track, 'co', None) is None:
         return transforms
 
-    if isinstance(track, FixedVectorTrackT):
-        v = Vector((track.co.x, track.co.y, track.co.z))
-        transforms = [v] * key_frames
+    if track_type == "vector":
+        if isinstance(track, FixedVectorTrackT):
+            transforms = [(track.co.x, track.co.y, track.co.z)] * key_frames
 
-    elif isinstance(track, DynamicVectorTrackT):
-        for i in range(min(len(track.co), key_frames)):
-            transforms[i] = Vector((track.co[i].x, track.co[i].y, track.co[i].z))
+        elif isinstance(track, DynamicVectorTrackT):
+            for i in range(min(len(track.co), key_frames)):
+                transforms[i] = (track.co[i].x, track.co[i].y, track.co[i].z)
 
-    elif isinstance(track, Framed16VectorTrackT) or isinstance(track, Framed8VectorTrackT):
-        frameDataX = np.array([track.co[i].x for i in range(len(track.co))])
-        frameDataY = np.array([track.co[i].y for i in range(len(track.co))])
-        frameDataZ = np.array([track.co[i].z for i in range(len(track.co))])
-        iframeDataX = np.interp(np.arange(key_frames), np.array(track.frames), frameDataX)
-        iframeDataY = np.interp(np.arange(key_frames), np.array(track.frames), frameDataY)
-        iframeDataZ = np.interp(np.arange(key_frames), np.array(track.frames), frameDataZ)
-        for frame, (x, y, z) in enumerate(zip(iframeDataX, iframeDataY, iframeDataZ)):
-                transforms[frame] = Vector((x, y, z))
-    return transforms
+        elif isinstance(track, (Framed16VectorTrackT, Framed8VectorTrackT)):
+            frameDataX = np.array([track.co[i].x for i in range(len(track.co))])
+            frameDataY = np.array([track.co[i].y for i in range(len(track.co))])
+            frameDataZ = np.array([track.co[i].z for i in range(len(track.co))])
+            iframeDataX = np.interp(np.arange(key_frames), np.array(track.frames), frameDataX)
+            iframeDataY = np.interp(np.arange(key_frames), np.array(track.frames), frameDataY)
+            iframeDataZ = np.interp(np.arange(key_frames), np.array(track.frames), frameDataZ)
+            for frame, (x, y, z) in enumerate(zip(iframeDataX, iframeDataY, iframeDataZ)):
+                transforms[frame] = (x, y, z)
 
+    elif track_type == "rotation":
+        if isinstance(track, FixedRotationTrackT):
+            e = get_quaternion_from_packed(track.co, 0)
+            transforms = [e] * key_frames
 
-def get_rotation_track_transforms(
-    track: (
-        DynamicRotationTrackT
-        | FixedRotationTrackT
-        | Framed16RotationTrackT
-        | Framed8RotationTrackT
-        | None
-    ),
-    key_frames: int,
-) -> list[Quaternion | None]:
-    """
-    Returns list with transforms from RotationTrack object.
-    :param track: RotationTrack object.
-    :param key_frames: Amount of keyframes in animation.
-    :return: List of Eulers or None.
-    """
-    assert key_frames > 0, "Keyframes amount is less than 1."
-    transforms: list[Quaternion | None] = [None] * key_frames
-    if isinstance(track, FixedRotationTrackT):
-        e = get_quaternion_from_packed(track.co, 0)
-        transforms = [e] * key_frames
-    elif isinstance(track, DynamicRotationTrackT):
-        for i in range(min(len(track.co), key_frames)):
-            transforms[i] = get_quaternion_from_packed(track.co[i], i)
-    elif isinstance(track, Framed16RotationTrackT) or isinstance(track, Framed8RotationTrackT):
-        frameData = np.array([get_quaternion_from_packed(track.co[i], i) for i in range(len(track.co))])
-        interpolatedFrames = np.array([np.interp(np.arange(key_frames), np.array(track.frames), data) for data in frameData.transpose()]).T
-        for frame, quat in enumerate(interpolatedFrames):
-            transforms[frame] = Quaternion(quat)
+        elif isinstance(track, DynamicRotationTrackT):
+            for i in range(min(len(track.co), key_frames)):
+                transforms[i] = get_quaternion_from_packed(track.co[i], i)
+
+        elif isinstance(track, (Framed16RotationTrackT, Framed8RotationTrackT)):
+            frameData = np.array([get_quaternion_from_packed(track.co[i], i) for i in range(len(track.co))])
+            interpolatedFrames = np.array([
+                np.interp(np.arange(key_frames), np.array(track.frames), data) for data in frameData.transpose()
+            ]).T
+            for frame, quat in enumerate(interpolatedFrames):
+                transforms[frame] = Quaternion(quat)
 
     return transforms
 
