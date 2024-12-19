@@ -54,7 +54,9 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                     import_animation(context, os.path.join(str(self.directory), file.name),
                                      self.ignore_origin_location)
                 except OSError as e:
-                    self.report({"INFO"}, "Failed to import " + file + ".\n" + str(e))
+                    self.report({"INFO"}, "Failed to import " + os.path.join(str(self.directory),
+                                                                             file.name) + ".\n" + str(
+                        e))
                 else:
                     b = True
                 finally:
