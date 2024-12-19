@@ -1,5 +1,5 @@
 """
-    Init for GFBANM Importer addon.
+    Init for GFBANM/TRANM Importer addon.
 """
 import os
 import sys
@@ -35,7 +35,12 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         description="Ignore Origin Location",
         default=False
     )
+
     def execute(self, context: bpy.types.Context):
+        """
+        Executing import menu.
+        :param context: Blender's context.
+        """
         if not attempt_install_flatbuffers(self):
             self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
                                    "To use this addon, put Python flatbuffers library folder "
@@ -46,7 +51,8 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
             b = False
             for file in self.files:
                 try:
-                    import_animation(context, os.path.join(str(self.directory), file.name), self.ignore_origin_location)
+                    import_animation(context, os.path.join(str(self.directory), file.name),
+                                     self.ignore_origin_location)
                 except OSError as e:
                     self.report({"INFO"}, "Failed to import " + file + ".\n" + str(e))
                 else:
@@ -79,6 +85,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         """
         box = self.layout.box()
         box.prop(self, "ignore_origin_location", text="Ignore Origin Location")
+
 
 def menu_func_import(operator: bpy.types.Operator, _context: bpy.types.Context):
     """
