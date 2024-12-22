@@ -6,7 +6,7 @@ This is Blender 2.80+ addon for importing single or multiple animation files fro
 ## Currently Working:
 - Skeleton:
   - Translation transforms
-  - Scaling transforms
+  - Scaling transforms (requires correct "Inherit Scale" option to be set on bones prior to importing animation)
   - Rotation transforms
 ## Not implemented:
 - Material flags
