@@ -28,7 +28,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
     bl_label = "Import GFBANM/TRANM"
     bl_description = "Import one or multiple GFBANM/TRANM files"
     directory: StringProperty()
-    filter_glob: StringProperty(default="*.gfbanm;*.tranm", options={'HIDDEN'})
+    filter_glob: StringProperty(default="*.gfbanm;*.tranm", options={"HIDDEN"})
     files: CollectionProperty(type=bpy.types.PropertyGroup)
     ignore_origin_location: BoolProperty(
         name="Ignore Origin Location",
@@ -44,19 +44,17 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         if not attempt_install_flatbuffers(self):
             self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
                                    "To use this addon, put Python flatbuffers library folder "
-                                   "to this path: " + get_site_packages_path() + ".")
+                                   f"to this path: {get_site_packages_path()}.")
             return {"CANCELLED"}
-        from .gfbanm_importer import import_animation
+        from .gfbanm_importer import import_animation  # pylint: disable=import-outside-toplevel
         if self.files:
             b = False
             for file in self.files:
+                file_path = os.path.join(str(self.directory), file.name)
                 try:
-                    import_animation(context, os.path.join(str(self.directory), file.name),
-                                     self.ignore_origin_location)
+                    import_animation(context, file_path, self.ignore_origin_location)
                 except OSError as e:
-                    self.report({"INFO"}, "Failed to import " + os.path.join(str(self.directory),
-                                                                             file.name) + ".\n" + str(
-                        e))
+                    self.report({"INFO"}, f"Failed to import {file_path}. {str(e)}")
                 else:
                     b = True
                 finally:
@@ -67,7 +65,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         try:
             import_animation(context, self.filepath, self.ignore_origin_location)
         except OSError as e:
-            self.report({"ERROR"}, "Failed to import " + self.filepath + ".\n" + str(e))
+            self.report({"ERROR"}, f"Failed to import {self.filepath}. {str(e)}")
             return {"CANCELLED"}
         return {"FINISHED"}
 
@@ -144,7 +142,7 @@ def are_flatbuffers_installed() -> bool:
     :return: True or False.
     """
     try:
-        import flatbuffers
+        import flatbuffers # pylint: disable=import-outside-toplevel, unused-import
     except ModuleNotFoundError:
         return False
     return True
