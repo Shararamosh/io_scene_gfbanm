@@ -3,6 +3,7 @@
 """
 import os
 import sys
+import math
 
 import bpy
 from mathutils import Vector, Quaternion
@@ -26,6 +27,7 @@ def export_animation(context: bpy.types.Context, does_loop: bool) -> int | bytea
     Exports armature animation to GFBANM/TRANM format.
     :param context: Blender's Context.
     :param does_loop: True if animation is looping.
+    :return: GFBANM/TRANM bytearray.
     """
     assert context.object is not None and context.object.type == "ARMATURE",\
         "Target Armature not selected."
@@ -75,14 +77,53 @@ def export_animation(context: bpy.types.Context, does_loop: bool) -> int | bytea
     builder.Finish(animation)
     return builder.Output()
 
-def pack_quaternion_to_48bit(_q: Quaternion) -> (int, int, int):
+PI_DIVISOR = math.pi / 65536
+PI_ADDEND = math.pi / 4.0
+
+def quantize_float(f: float) -> int:
+    """
+    Packs expanded float into integer.
+    :param f: Expanded float.
+    :return: Packed integer.
+    """
+    result = int((f + PI_ADDEND) / PI_DIVISOR)
+    return result & 0x7FFF
+
+def pack_quaternion_to_48bit(q: Quaternion) -> (int, int, int):
     """
     Packs Blender Quaternion into 48-bit integer Vector.
-    To-do: Figure out how to actually pack Quaternion to 3x16 bits integers. Returns dummy for now.
-    :param _q: Blender Quaternion.
+    :param q: Blender Quaternion.
     :return: X, Y, Z values of integer Vector.
     """
-    return 0, 0, 0
+    q_list = [q.w, q.x, q.y, q.z]
+    max_val = max(q_list)
+    min_val = min(q_list)
+    is_negative = 0
+    if abs(min_val) > max_val:
+        max_val = min_val
+        is_negative = 1
+    max_index = q_list.index(max_val)
+    if is_negative == 1:
+        q_list = [-x for x in q_list]
+    if max_index == 0:
+        tx = quantize_float(q_list[3])
+        ty = quantize_float(q_list[1])
+        tz = quantize_float(q_list[2])
+    elif max_index == 1:
+        tx = quantize_float(q_list[0])
+        ty = quantize_float(q_list[3])
+        tz = quantize_float(q_list[2])
+    elif max_index == 2:
+        tx = quantize_float(q_list[0])
+        ty = quantize_float(q_list[1])
+        tz = quantize_float(q_list[3])
+    else:
+        tx = quantize_float(q_list[0])
+        ty = quantize_float(q_list[1])
+        tz = quantize_float(q_list[2])
+    pack = (tz << 30) | (ty << 15) | tx
+    pack = (pack << 3) | ((is_negative << 2) | max_index)
+    return pack & 0xFFFF, (pack >> 16) & 0xFFFF, (pack >> 32) & 0xFFFF
 
 
 def get_track_transforms_from_posebone(context: bpy.types.Context, pose_bone: bpy.types.PoseBone)\
