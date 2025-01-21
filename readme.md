@@ -11,5 +11,7 @@ This is Blender 2.80+ addon for importing single or multiple animation files fro
 ## Not implemented:
 - Material flags
 - Event data
+## Partially implemented:
+- Animation export (creates valid .gfbanm or .tranm file, but with incorrect transforms)
 
 Flatbuffers schema scripts were generated from [pkZukan's gfbanm.fbs](https://github.com/pkZukan/PokeDocs/blob/main/SWSH/Flatbuffers/Animation/gfbanm.fbs).

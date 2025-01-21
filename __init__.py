@@ -1,5 +1,5 @@
 """
-    Init for GFBANM/TRANM Importer addon.
+    Blender 2.80+ addon for importing and exporting GFBANM/TRANM animation files.
 """
 import os
 import sys
@@ -7,22 +7,24 @@ import subprocess
 import bpy
 from bpy.props import *
 from bpy.utils import register_class, unregister_class
-from bpy_extras.io_utils import ImportHelper
+from bpy_extras.io_utils import ImportHelper, ExportHelper
+
+# pylint: disable=import-outside-toplevel, wrong-import-position, import-error, unused-import
 
 bl_info = {
-    "name": "GFBANM/TRANM Import",
+    "name": "GFBANM/TRANM Import and Export",
     "author": "Shararamosh, Mvit & ElChicoEevee",
     "blender": (2, 80, 0),
     "version": (1, 0, 0),
     "location": "File > Import-Export",
-    "description": "Import GFBANM/TRANM data",
+    "description": "Import and Export GFBANM/TRANM data",
     "category": "Import-Export",
 }
 
 
 class ImportGfbanm(bpy.types.Operator, ImportHelper):
     """
-    Class for operator that imports GFBANM files.
+    Class for operator that imports GFBANM/TRANM files.
     """
     bl_idname = "import.gfbanm"
     bl_label = "Import GFBANM/TRANM"
@@ -46,7 +48,10 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                                    "To use this addon, put Python flatbuffers library folder "
                                    f"to this path: {get_site_packages_path()}.")
             return {"CANCELLED"}
-        from .gfbanm_importer import import_animation  # pylint: disable=import-outside-toplevel
+        if context.active_object is None or context.active_object.type != "ARMATURE":
+            self.report({"ERROR"}, "No Armature is selected for action import.")
+            return {"CANCELLED"}
+        from .gfbanm_importer import import_animation
         if self.files:
             b = False
             for file in self.files:
@@ -69,15 +74,6 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
             return {"CANCELLED"}
         return {"FINISHED"}
 
-    @classmethod
-    def poll(cls, _context: bpy.types.Context):
-        """
-        Checking if operator can be active.
-        :param _context: Blender's Context.
-        :return: True if active, False otherwise.
-        """
-        return True
-
     def draw(self, _context: bpy.types.Context):
         """
         Drawing importer's menu.
@@ -87,14 +83,118 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         box.prop(self, "ignore_origin_location", text="Ignore Origin Location")
 
 
+class ExportGfbanm(bpy.types.Operator, ExportHelper):
+    """
+    Class for operator that exports GFBANM files.
+    """
+    bl_idname = "export.gfbanm"
+    bl_label = "Export GFBANM (WIP)"
+    bl_description = "Export current action as GFBANM file"
+    bl_options = {"PRESET", "UNDO"}
+    filename_ext = ".gfbanm"
+    does_loop: BoolProperty(
+        name="Looping action",
+        description="Export as looping action",
+        default=False,
+    )
+
+    def draw(self, _context: bpy.types.Context):
+        """
+        Drawing exporter's menu.
+        :param _context: Blender's context.
+        """
+        layout = self.layout
+        box = layout.box()
+        box.prop(self, "does_loop")
+
+    def execute(self, context: bpy.types.Context):
+        """
+        Executing export menu.
+        :param context: Blender's context.
+        """
+        if not attempt_install_flatbuffers(self):
+            self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
+                                   "To use this addon, put Python flatbuffers library folder "
+                                   f"to this path: {get_site_packages_path()}.")
+            return {"CANCELLED"}
+        if context.active_object is None or context.active_object.type != "ARMATURE":
+            self.report({"ERROR"}, "No Armature is selected for action export.")
+            return {"CANCELLED"}
+        directory = os.path.dirname(self.filepath)
+        from .gfbanm_exporter import export_animation
+        data = export_animation(context, self.does_loop)
+        file_path = os.path.join(directory, self.filepath)
+        with open(file_path, "wb") as file:
+            file.write(data)
+            print(f"Armature action successfully exported to {file_path}.")
+        return {"FINISHED"}
+
+
+class ExportTranm(bpy.types.Operator, ExportHelper):
+    """
+    Class for operator that exports TRANM files.
+    """
+    bl_idname = "export.tranm"
+    bl_label = "Export TRANM (WIP)"
+    bl_description = "Export current action as TRANM file"
+    filename_ext = ".tranm"
+    does_loop: BoolProperty(
+        name="Looping action",
+        description="Export as looping action",
+        default=False,
+    )
+
+    def draw(self, _context: bpy.types.Context):
+        """
+        Drawing exporter's menu.
+        :param _context: Blender's context.
+        """
+        layout = self.layout
+        box = layout.box()
+        box.prop(self, "does_loop")
+
+    def execute(self, context: bpy.types.Context):
+        """
+        Executing export menu.
+        :param context: Blender's context.
+        """
+        if not attempt_install_flatbuffers(self):
+            self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
+                                   "To use this addon, put Python flatbuffers library folder "
+                                   f"to this path: {get_site_packages_path()}.")
+            return {"CANCELLED"}
+        if context.active_object is None or context.active_object.type != "ARMATURE":
+            self.report({"ERROR"}, "No Armature is selected for action export.")
+            return {"CANCELLED"}
+        directory = os.path.dirname(self.filepath)
+        from .gfbanm_exporter import export_animation
+        data = export_animation(context, self.does_loop)
+        file_path = os.path.join(directory, self.filepath)
+        with open(file_path, "wb") as file:
+            file.write(data)
+            print(f"Armature action successfully exported to {file_path}.")
+        return {"FINISHED"}
+
+
 def menu_func_import(operator: bpy.types.Operator, _context: bpy.types.Context):
     """
-    Function that adds GFBANM import operator.
+    Function that adds GFBANM/TRANM import operator.
     :param operator: Blender's operator.
     :param _context: Blender's Context.
     :return:
     """
-    operator.layout.operator(ImportGfbanm.bl_idname, text="GFBANM/TRANM (.gfbanm, .tranm)")
+    operator.layout.operator(ImportGfbanm.bl_idname, text="Pokémon Switch Action (.gfbanm, .tranm)")
+
+
+def menu_func_export(operator: bpy.types.Operator, _context: bpy.types.Context):
+    """
+    Function that adds GFBANM and TRANM export operators.
+    :param operator: Blender's operator.
+    :param _context: Blender's Context.
+    :return:
+    """
+    operator.layout.operator(ExportGfbanm.bl_idname, text="Pokémon Sword/Shield Action (.gfbanm)")
+    operator.layout.operator(ExportTranm.bl_idname, text="Pokémon Trinity Action (.tranm)")
 
 
 def register():
@@ -103,6 +203,9 @@ def register():
     """
     register_class(ImportGfbanm)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
+    register_class(ExportGfbanm)
+    register_class(ExportTranm)
+    bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
 def unregister():
@@ -112,6 +215,9 @@ def unregister():
     """
     unregister_class(ImportGfbanm)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    unregister_class(ExportGfbanm)
+    unregister_class(ExportTranm)
+    bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
 
 
 def attempt_install_flatbuffers(operator: bpy.types.Operator = None) -> bool:
@@ -142,7 +248,7 @@ def are_flatbuffers_installed() -> bool:
     :return: True or False.
     """
     try:
-        import flatbuffers # pylint: disable=import-outside-toplevel, unused-import
+        import flatbuffers
     except ModuleNotFoundError:
         return False
     return True
