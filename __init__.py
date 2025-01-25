@@ -3,6 +3,7 @@
 """
 import os
 import sys
+import sysconfig
 import subprocess
 import bpy
 from bpy.props import *
@@ -44,9 +45,6 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         :param context: Blender's context.
         """
         if not attempt_install_flatbuffers(self):
-            self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
-                                   "To use this addon, put Python flatbuffers library folder "
-                                   f"to this path: {get_site_packages_path()}.")
             return {"CANCELLED"}
         if context.active_object is None or context.active_object.type != "ARMATURE":
             self.report({"ERROR"}, "No Armature is selected for action import.")
@@ -113,9 +111,6 @@ class ExportGfbanm(bpy.types.Operator, ExportHelper):
         :param context: Blender's context.
         """
         if not attempt_install_flatbuffers(self):
-            self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
-                                   "To use this addon, put Python flatbuffers library folder "
-                                   f"to this path: {get_site_packages_path()}.")
             return {"CANCELLED"}
         if context.active_object is None or context.active_object.type != "ARMATURE":
             self.report({"ERROR"}, "No Armature is selected for action export.")
@@ -159,9 +154,6 @@ class ExportTranm(bpy.types.Operator, ExportHelper):
         :param context: Blender's context.
         """
         if not attempt_install_flatbuffers(self):
-            self.report({"ERROR"}, "Failed to install flatbuffers library using pip. "
-                                   "To use this addon, put Python flatbuffers library folder "
-                                   f"to this path: {get_site_packages_path()}.")
             return {"CANCELLED"}
         if context.active_object is None or context.active_object.type != "ARMATURE":
             self.report({"ERROR"}, "No Armature is selected for action export.")
@@ -227,18 +219,24 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator = None) -> bool:
     """
     if are_flatbuffers_installed():
         return True
-    target = get_site_packages_path()
-    subprocess.call([sys.executable, "-m", 'ensurepip'])
+    subprocess.call([sys.executable, "-m", "ensurepip"])
     subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
-    subprocess.call(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "flatbuffers", "-t", target])
+    subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "flatbuffers"])
     if are_flatbuffers_installed():
+        msg = "Successfully installed flatbuffers library."
         if operator is not None:
-            operator.report({"INFO"},
-                            "Successfully installed flatbuffers library to " + target + ".")
+            operator.report({"INFO"}, msg)
         else:
-            print("Successfully installed flatbuffers library to " + target + ".")
+            print(msg)
         return True
+    platlib_path = sysconfig.get_path("platlib")
+    msg = ("Failed to install flatbuffers library using pip. "
+           f"To use this addon, put Python flatbuffers library folder "
+           f"to this path: {platlib_path}.")
+    if operator is not None:
+        operator.report({"ERROR"}, msg)
+    else:
+        print(msg)
     return False
 
 
@@ -252,14 +250,6 @@ def are_flatbuffers_installed() -> bool:
     except ModuleNotFoundError:
         return False
     return True
-
-
-def get_site_packages_path():
-    """
-    Returns file path to lib/site-packages folder.
-    :return: File path to lib/site-packages folder.
-    """
-    return os.path.join(sys.prefix, "lib", "site-packages")
 
 
 if __name__ == "__main__":
