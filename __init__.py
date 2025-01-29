@@ -125,7 +125,7 @@ class ExportGfbanm(bpy.types.Operator, ExportHelper):
         items=(("GFBANM", "GFBANM (.gfbanm)",
                 "Exports action in format used by Pokémon Sword/Shield."),
                ("TRANM", "TRANM (.tranm)",
-                "Exports action in format used by Pokémon Legends Arceus and "
+                "Exports action in format used by Pokémon Legends: Arceus and "
                 "Pokémon Scarlet/Violet.")),
         description="Output format for action",
         default=0,
