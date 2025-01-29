@@ -1,5 +1,5 @@
 """
-    Blender 2.80+ addon for importing and exporting GFBANM/TRANM animation files.
+    Blender 2.80+ addon for importing and exporting Nintendo Switch Pokémon Animation files.
 """
 import os
 import sys
@@ -13,36 +13,37 @@ from bpy_extras.io_utils import ImportHelper, ExportHelper
 # pylint: disable=import-outside-toplevel, wrong-import-position, import-error, unused-import
 
 bl_info = {
-    "name": "GFBANM/TRANM Import and Export",
+    "name": "Nintendo Switch Pokémon Animation (GFBANM/TRANM) format",
     "author": "Shararamosh, Mvit & ElChicoEevee",
     "blender": (2, 80, 0),
     "version": (1, 0, 0),
     "location": "File > Import-Export",
-    "description": "Import and Export GFBANM/TRANM data",
+    "description": "Import-Export Nintendo Switch Pokémon Animation data",
     "category": "Import-Export",
 }
 
 
 class ImportGfbanm(bpy.types.Operator, ImportHelper):
     """
-    Class for operator that imports GFBANM/TRANM files.
+    Class for operator that imports Pokémon Animation files.
     """
     bl_idname = "import.gfbanm"
     bl_label = "Import GFBANM/TRANM"
-    bl_description = "Import one or multiple GFBANM/TRANM files"
+    bl_description = "Import one or multiple Nintendo Switch Pokémon Animation files"
     directory: StringProperty()
     filter_glob: StringProperty(default="*.gfbanm;*.tranm", options={"HIDDEN"})
     files: CollectionProperty(type=bpy.types.PropertyGroup)
     ignore_origin_location: BoolProperty(
         name="Ignore Origin Location",
-        description="Ignore Origin Location",
+        description="Whether to ignore location transforms for bone named Origin",
         default=False
     )
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         """
         Executing import menu.
         :param context: Blender's context.
+        :return: Result.
         """
         if not attempt_install_flatbuffers(self):
             return {"CANCELLED"}
@@ -77,81 +78,130 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         Drawing importer's menu.
         :param _context: Blender's context.
         """
-        box = self.layout.box()
-        box.prop(self, "ignore_origin_location", text="Ignore Origin Location")
+        self.layout.prop(self, "ignore_origin_location")
 
+
+def on_export_format_changed(struct: bpy.types.bpy_struct, context: bpy.types.Context):
+    """
+    Called when export format was updated.
+    :param struct: Struct that was changed.
+    :param context: Blender's Context.
+    """
+    if isinstance(struct.id_data, bpy.types.Collection):
+        struct.filepath = ExportGfbanm.ensure_filepath_matches_export_format(
+            struct.filepath,
+            struct.export_format
+        )
+    if not isinstance(context.space_data, bpy.types.SpaceFileBrowser):
+        return
+    if not context.space_data.active_operator:
+        return
+    if context.space_data.active_operator.bl_idname != "EXPORT_OT_gfbanm":
+        return
+    context.space_data.params.filename = ExportGfbanm.ensure_filepath_matches_export_format(
+        context.space_data.params.filename,
+        struct.export_format,
+    )
+    if struct.export_format == "TRANM":
+        context.space_data.params.filter_glob = "*.tranm"
+    else:
+        context.space_data.params.filter_glob = "*.gfbanm"
+    bpy.ops.file.refresh()
 
 class ExportGfbanm(bpy.types.Operator, ExportHelper):
     """
-    Class for operator that exports GFBANM files.
+    Class for operator that exports GFBANM/TRANM files.
     """
     bl_idname = "export.gfbanm"
-    bl_label = "Export GFBANM (WIP)"
-    bl_description = "Export current action as GFBANM file"
+    bl_label = "Export GFBANM/TRANM"
+    bl_description = "Export current action as Nintendo Switch Pokémon Animation file"
     bl_options = {"PRESET", "UNDO"}
-    filename_ext = ".gfbanm"
-    does_loop: BoolProperty(
-        name="Looping action",
-        description="Export as looping action",
-        default=False,
+    filename_ext = ""
+    filter_glob: StringProperty(default="*.gfbanm", options={"HIDDEN"})
+    filepath: StringProperty(subtype="FILE_PATH")
+
+    export_format: EnumProperty(
+        name="Format",
+        items=(("GFBANM", "GFBANM (.gfbanm)",
+                "Exports action in format used by Pokémon Sword/Shield."),
+               ("TRANM", "TRANM (.tranm)",
+                "Exports action in format used by Pokémon Legends Arceus and "
+                "Pokémon Scarlet/Violet.")),
+        description="Output format for action",
+        default=0,
+        update=on_export_format_changed
     )
 
-    def draw(self, _context: bpy.types.Context):
-        """
-        Drawing exporter's menu.
-        :param _context: Blender's context.
-        """
-        layout = self.layout
-        box = layout.box()
-        box.prop(self, "does_loop")
+    does_loop: BoolProperty(
+        name="Looping",
+        description="Export as looping animation",
+        default=False
+    )
 
-    def execute(self, context: bpy.types.Context):
+    @staticmethod
+    def ensure_filepath_matches_export_format(filepath: str, export_format: str) -> str:
         """
-        Executing export menu.
-        :param context: Blender's context.
+        Ensures file path matches export format.
+        :param filepath: File path string.
+        :param export_format: Export format string.
+        :return: Modified file path string.
         """
-        if not attempt_install_flatbuffers(self):
-            return {"CANCELLED"}
-        if context.active_object is None or context.active_object.type != "ARMATURE":
-            self.report({"ERROR"}, "No Armature is selected for action export.")
-            return {"CANCELLED"}
+        filename = os.path.basename(filepath)
+        if not filename:
+            return filepath
+        stem, ext = os.path.splitext(filename)
+        if stem.startswith(".") and not ext:
+            stem, ext = "", stem
+        desired_ext = ".tranm" if export_format == "TRANM" else ".gfbanm"
+        ext_lower = ext.lower()
+        if ext_lower not in [".gfbanm", ".tranm"]:
+            return filepath + desired_ext
+        if ext_lower != desired_ext:
+            filepath = filepath[:-len(ext)]
+            return filepath + desired_ext
+        return filepath
+
+    def check(self, _context: bpy.types.Context) -> bool:
+        """
+        Checks if operator needs to be updated.
+        :param _context: Blender's Context.
+        :return: True if update is needed, False otherwise.
+        """
+        old_filepath = self.filepath
+        self.filepath = ExportGfbanm.ensure_filepath_matches_export_format(self.filepath,
+                                                                           self.export_format)
+        return self.filepath != old_filepath
+
+    def invoke(self, context: bpy.types.Context, _event: bpy.types.Event) -> set[str]:
+        """
+        Called when operator is invoked by user.
+        :param context: Blender's Context.
+        :param _event: Event invoked.
+        :return: Result.
+        """
         directory = os.path.dirname(self.filepath)
-        from .gfbanm_exporter import export_animation
-        data = export_animation(context, self.does_loop)
-        file_path = os.path.join(directory, self.filepath)
-        with open(file_path, "wb") as file:
-            file.write(data)
-            print(f"Armature action successfully exported to {file_path}.")
-        return {"FINISHED"}
-
-
-class ExportTranm(bpy.types.Operator, ExportHelper):
-    """
-    Class for operator that exports TRANM files.
-    """
-    bl_idname = "export.tranm"
-    bl_label = "Export TRANM (WIP)"
-    bl_description = "Export current action as TRANM file"
-    filename_ext = ".tranm"
-    does_loop: BoolProperty(
-        name="Looping action",
-        description="Export as looping action",
-        default=False,
-    )
+        filename = os.path.splitext(os.path.basename(context.blend_data.filepath))[0]
+        obj = context.object
+        if obj and obj.animation_data and obj.animation_data.action:
+            filename = obj.animation_data.action.name
+        self.filepath = ExportGfbanm.ensure_filepath_matches_export_format(
+            os.path.join(directory, filename), self.export_format)
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
 
     def draw(self, _context: bpy.types.Context):
         """
         Drawing exporter's menu.
         :param _context: Blender's context.
         """
-        layout = self.layout
-        box = layout.box()
-        box.prop(self, "does_loop")
+        self.layout.prop(self, "export_format")
+        self.layout.prop(self, "does_loop")
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: bpy.types.Context) -> set[str]:
         """
         Executing export menu.
         :param context: Blender's context.
+        :return: Result.
         """
         if not attempt_install_flatbuffers(self):
             return {"CANCELLED"}
@@ -175,18 +225,18 @@ def menu_func_import(operator: bpy.types.Operator, _context: bpy.types.Context):
     :param _context: Blender's Context.
     :return:
     """
-    operator.layout.operator(ImportGfbanm.bl_idname, text="Pokémon Switch Action (.gfbanm, .tranm)")
+    operator.layout.operator(ImportGfbanm.bl_idname, text="Pokémon Animation (.gfbanm/.tranm)")
 
 
 def menu_func_export(operator: bpy.types.Operator, _context: bpy.types.Context):
     """
-    Function that adds GFBANM and TRANM export operators.
+    Function that adds GFBANM/TRANM export operators.
     :param operator: Blender's operator.
     :param _context: Blender's Context.
     :return:
     """
-    operator.layout.operator(ExportGfbanm.bl_idname, text="Pokémon Sword/Shield Action (.gfbanm)")
-    operator.layout.operator(ExportTranm.bl_idname, text="Pokémon Trinity Action (.tranm)")
+    operator.layout.operator(ExportGfbanm.bl_idname,
+                             text="Pokémon Animation (.gfbanm/.tranm) [WIP]")
 
 
 def register():
@@ -196,7 +246,6 @@ def register():
     register_class(ImportGfbanm)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     register_class(ExportGfbanm)
-    register_class(ExportTranm)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
 
 
@@ -208,7 +257,6 @@ def unregister():
     unregister_class(ImportGfbanm)
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
     unregister_class(ExportGfbanm)
-    unregister_class(ExportTranm)
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
 
 
