@@ -4,18 +4,19 @@ This is Blender 2.80+ addon for importing single or multiple animation files fro
 ## Dependencies:
 - [Flatbuffers library](https://pypi.org/project/flatbuffers/) (the addon will attempt installing it using pip if not detected)
 ## Implemented:
-- Skeleton:
+- Animation import:
   - Translation transforms
   - Scaling transforms (requires correct "Inherit Scale" option to be set on bones prior to importing animation)
+  - Rotation transforms
+- Animation export:
+  - Translation transforms
+  - Scaling transforms ("Inherit Scale" option is not taken into account as it's part of armature, not animation)
   - Rotation transforms
 ## Not implemented:
 - Material flags
 - Event data
-## Partially implemented:
-- Animation export:
-  - Invalid rotation transforms (due to incorrect rotation quantization)
-  - Invalid translation transforms for non-root bones (due to being affected by parent bones' invalid rotation transforms)
-  - Valid scale transforms ("Inherit Scale" option is not taken into account as it's part of armature, not animation)
+
+As of now import speed is much lower than export due to using `use_local_location` workaround, which requires updating scene for every bone transformed.
 
 Flatbuffers schema scripts were generated from [pkZukan's gfbanm.fbs](https://github.com/pkZukan/PokeDocs/blob/main/SWSH/Flatbuffers/Animation/gfbanm.fbs).
 
