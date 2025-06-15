@@ -16,8 +16,6 @@ This is Blender 2.81+ addon for importing single or multiple animation files fro
 - Material flags
 - Event data
 
-As of now import speed is much lower than export due to using `use_local_location` workaround, which requires updating scene for every bone transformed.
-
 Flatbuffers schema scripts were generated from [pkZukan's gfbanm.fbs](https://github.com/pkZukan/PokeDocs/blob/main/SWSH/Flatbuffers/Animation/gfbanm.fbs).
 
 If you need addon for importing and/or exporting both animations and meshes, download [this one](https://github.com/ChicoEevee/Pokemon-Switch-V2-Model-Importer-Blender). It fully includes this addon, but may occasionally be out-of-date.
