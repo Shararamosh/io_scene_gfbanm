@@ -75,7 +75,6 @@ def import_animation(
             ignore_origin_location,
             frame_start
         )
-        context.view_layer.update()
 
 
 def apply_animation_to_tracks(
@@ -99,11 +98,10 @@ def apply_animation_to_tracks(
     """
     assert (context.object is not None and context.object.type == "ARMATURE"), \
         "Selected object is not Armature."
-    previous_mode = context.object.mode
-    if context.object.mode != "POSE":
-        bpy.ops.object.mode_set(mode="POSE")
-    previous_position = context.object.data.pose_position
-    context.object.data.pose_position = "POSE"
+    for pose_bone in context.object.pose.bones:
+        print("Clearing pose for " + pose_bone.name + " bone.")
+        pose_bone.matrix_basis = Matrix.Identity(4)
+    context.view_layer.update()
     action = None
     for track in tracks:
         if track is None or track.name is None or track.name == "":
@@ -125,9 +123,7 @@ def apply_animation_to_tracks(
             context.scene.render.fps_base = 1.0
         apply_track_transforms_to_posebone(pose_bone, list(zip(t_list, r_list, s_list)),
                                            ignore_origin_location, frame_start)
-    if previous_mode != context.object.mode:
-        bpy.ops.object.mode_set(mode=previous_mode)
-    context.object.data.pose_position = previous_position
+    context.view_layer.update()
 
 
 def apply_track_transforms_to_posebone(
@@ -154,12 +150,12 @@ def apply_track_transforms_to_posebone(
         if transform[1] is not None:
             rot = transform[1]
         matrix = Matrix.LocRotScale(loc, rot, scale)
+        if pose_bone.parent:
+            matrix = pose_bone.parent.matrix @ matrix
         loc, rot, scale = Matrix.Identity(4).decompose()
         if transform[2] is not None:
             scale = transform[2]
         matrix = matrix @ Matrix.LocRotScale(loc, rot, scale)
-        if pose_bone.parent:
-            matrix = pose_bone.parent.matrix @ matrix
         pose_bone.matrix = matrix
         current_frame = frame_start + i
         if transform[0] is not None:
