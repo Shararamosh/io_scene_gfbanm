@@ -1,6 +1,6 @@
 # Pokémon Switch Animation Blender Importer/Exporter
 
-This is Blender 2.81+ addon for importing and exporting animation files from the Pokémon games on Nintendo Switch (Pokémon Sword/Shield, Let's GO Pikachu/Eevee, Legends Arceus and Scarlet/Violet).
+This is Blender 3.1+ addon for importing and exporting animation files from the Pokémon games on Nintendo Switch (Pokémon Sword/Shield, Let's GO Pikachu/Eevee, Legends Arceus and Scarlet/Violet).
 ## Dependencies:
 - [Flatbuffers library](https://pypi.org/project/flatbuffers/) (the addon will attempt installing it using pip if not detected)
 ## Implemented:
@@ -18,4 +18,4 @@ This is Blender 2.81+ addon for importing and exporting animation files from the
 
 Flatbuffers schema scripts were generated from [pkZukan's gfbanm.fbs](https://github.com/pkZukan/PokeDocs/blob/main/SWSH/Flatbuffers/Animation/gfbanm.fbs).
 
-If you need addon for importing and/or exporting both animations and meshes, download [this one](https://github.com/ChicoEevee/Pokemon-Switch-V2-Model-Importer-Blender). It fully includes this addon, but may occasionally be out-of-date.
+If you need addon for importing and/or exporting both animations and meshes, download [this one](https://github.com/ChicoEevee/Pokemon-Switch-V2-Model-Importer-Blender). It fully includes this addon, but requires higher target Blender version and may occasionally be out-of-date.

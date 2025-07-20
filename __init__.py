@@ -1,10 +1,10 @@
 """
-    Blender 2.81+ addon for importing and exporting Nintendo Switch Pokémon Animation files.
+    Blender 3.1+ addon for importing and exporting Nintendo Switch Pokémon Animation files.
 """
 import os
 import sys
+import site
 import ensurepip
-import sysconfig
 import subprocess
 from importlib import import_module
 import bpy
@@ -17,7 +17,7 @@ from bpy_extras.io_utils import ImportHelper, ExportHelper
 bl_info = {
     "name": "Nintendo Switch Pokémon Animation (GFBANM/TRANM) format",
     "author": "Shararamosh, Mvit & ElChicoEevee",
-    "blender": (2, 81, 0),
+    "blender": (3, 1, 0),
     "version": (1, 0, 0),
     "location": "File > Import-Export",
     "description": "Import-Export Nintendo Switch Pokémon Animation data",
@@ -58,7 +58,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         :param context: Blender's context.
         :return: Result.
         """
-        if not attempt_install_flatbuffers(self):
+        if not attempt_install_flatbuffers(self, context):
             return {"CANCELLED"}
         if context.active_object is None or context.active_object.type != "ARMATURE":
             self.report({"ERROR"}, "No Armature is selected for action import.")
@@ -73,7 +73,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                                      context.scene.frame_start if self.use_scene_start
                                      else self.anim_offset)
                 except OSError as e:
-                    self.report({"INFO"}, f"Failed to import {file_path}. {str(e)}")
+                    self.report({"INFO"}, f"Failed to import {file_path}. {e}")
                 else:
                     b = True
                 finally:
@@ -86,7 +86,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                              context.scene.frame_start if self.use_scene_start
                              else self.anim_offset)
         except OSError as e:
-            self.report({"ERROR"}, f"Failed to import {self.filepath}. {str(e)}")
+            self.report({"ERROR"}, f"Failed to import {self.filepath}. {e}")
             return {"CANCELLED"}
         return {"FINISHED"}
 
@@ -232,7 +232,7 @@ class ExportGfbanm(bpy.types.Operator, ExportHelper):
         :param context: Blender's context.
         :return: Result.
         """
-        if not attempt_install_flatbuffers(self):
+        if not attempt_install_flatbuffers(self, context):
             return {"CANCELLED"}
         if context.active_object is None or context.active_object.type != "ARMATURE":
             self.report({"ERROR"}, "No Armature is selected for action export.")
@@ -289,31 +289,45 @@ def unregister():
     bpy.types.TOPBAR_MT_file_export.remove(menu_func_export)
 
 
-def attempt_install_flatbuffers(operator: bpy.types.Operator = None) -> bool:
+def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types.Context) -> bool:
     """
     Attempts installing flatbuffers library if it's not installed using pip.
     :return: True if flatbuffers was found or successfully installed, False otherwise.
     """
     if are_flatbuffers_installed():
         return True
+    modules_path = bpy.utils.user_resource("SCRIPTS", path="modules", create=True)
+    site.addsitedir(modules_path)
+    context.window_manager.progress_begin(0, 3)
     ensurepip.bootstrap()
+    context.window_manager.progress_update(1)
     subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
-    subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "flatbuffers"])
-    if are_flatbuffers_installed():
-        msg = "Successfully installed flatbuffers library."
+    context.window_manager.progress_update(2)
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "--target", modules_path,
+             "flatbuffers"])
+    except subprocess.SubprocessError as e:
+        context.window_manager.progress_update(3)
+        context.window_manager.progress_end()
+        msg = (f"Failed to install flatbuffers library using pip. {e}\n"
+               f"To use this addon, put Python flatbuffers library folder for your platform"
+               f"to this path: {modules_path}.")
         if operator is not None:
             operator.report({"INFO"}, msg)
         else:
             print(msg)
+        return False
+    context.window_manager.progress_update(3)
+    context.window_manager.progress_end()
+    if are_flatbuffers_installed():
+        msg = "Successfully installed flatbuffers library."
+        operator.report({"INFO"}, msg)
         return True
-    platlib_path = sysconfig.get_path("platlib")
-    msg = ("Failed to install flatbuffers library using pip. "
-           f"To use this addon, put Python flatbuffers library folder "
-           f"to this path: {platlib_path}.")
-    if operator is not None:
-        operator.report({"ERROR"}, msg)
-    else:
-        print(msg)
+    msg = ("Failed to install flatbuffers library using pip."
+           f"To use this addon, put Python flatbuffers library folder for your platform"
+           f"to this path: {modules_path}.")
+    operator.report({"ERROR"}, msg)
     return False
 
 
