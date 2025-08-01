@@ -293,10 +293,7 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types
         return True
     if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
         msg = "Can't install flatbuffers library using pip - Internet access is not allowed."
-        if operator is not None:
-            operator.report({"INFO"}, msg)
-        else:
-            print(msg)
+        operator.report({"INFO"}, msg)
         return False
     modules_path = bpy.utils.user_resource("SCRIPTS", path="modules", create=True)
     site.addsitedir(modules_path)
@@ -315,10 +312,7 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types
         msg = (f"Failed to install flatbuffers library using pip. {e}\n"
                f"To use this addon, put Python flatbuffers library folder for your platform"
                f"to this path: {modules_path}.")
-        if operator is not None:
-            operator.report({"INFO"}, msg)
-        else:
-            print(msg)
+        operator.report({"INFO"}, msg)
         return False
     context.window_manager.progress_update(3)
     context.window_manager.progress_end()
