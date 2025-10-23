@@ -7,12 +7,13 @@ import site
 import ensurepip
 import subprocess
 from importlib import import_module
+
 import bpy
 from bpy.props import *
 from bpy.utils import register_class, unregister_class
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 
-# pylint: disable=import-outside-toplevel, wrong-import-position, import-error
+# pylint: disable=import-outside-toplevel, wrong-import-position
 
 bl_info = {
     "name": "Nintendo Switch Pokémon Animation (GFBANM/TRANM) format",
@@ -46,10 +47,15 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         description="Use Scene playback range start frame as first frame of animation",
         default=False
     )
-    anim_offset: FloatProperty(
+    anim_offset: IntProperty(
         name="Animation Offset",
         description="Offset to apply to animation during import, in frames",
-        default=1.0
+        default=1
+    )
+    set_scene_end: BoolProperty(
+        name="Set Scene range end",
+        description="Set Scene playback range end frame to last frame of animation",
+        default=False
     )
 
     def execute(self, context: bpy.types.Context) -> set[str]:
@@ -71,7 +77,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                 try:
                     import_animation(context, file_path, self.ignore_origin_location,
                                      context.scene.frame_start if self.use_scene_start
-                                     else self.anim_offset)
+                                     else self.anim_offset, self.set_scene_end)
                 except OSError as e:
                     self.report({"INFO"}, f"Failed to import {file_path}. {e}")
                 else:
@@ -84,7 +90,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         try:
             import_animation(context, self.filepath, self.ignore_origin_location,
                              context.scene.frame_start if self.use_scene_start
-                             else self.anim_offset)
+                             else self.anim_offset, self.set_scene_end)
         except OSError as e:
             self.report({"ERROR"}, f"Failed to import {self.filepath}. {e}")
             return {"CANCELLED"}
@@ -97,6 +103,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         """
         self.layout.prop(self, "ignore_origin_location")
         self.layout.prop(self, "use_scene_start")
+        self.layout.prop(self, "set_scene_end")
         sub = self.layout.column()
         sub.enabled = not self.use_scene_start
         sub.prop(self, "anim_offset")
@@ -145,9 +152,11 @@ class ExportGfbanm(bpy.types.Operator, ExportHelper):
     export_format: EnumProperty(
         name="Format",
         items=(("GFBANM", "GFBANM (.gfbanm)",
-                "Exports action in format used by Pokémon Let's GO Pikachu/Eevee and Pokémon Sword/Shield."),
+                "Exports action in format used by Pokémon Let's GO Pikachu/Eevee and"
+                "Pokémon Sword/Shield."),
                ("TRANM", "TRANM (.tranm)",
-                "Exports action in format used by Pokémon Legends: Arceus and Pokémon Scarlet/Violet.")),
+                "Exports action in format used by Pokémon Legends: Arceus, "
+                "Pokémon Scarlet/Violet and Pokémon Legends: Z-A")),
         description="Output format for action",
         default=0,
         update=on_export_format_changed
@@ -161,7 +170,8 @@ class ExportGfbanm(bpy.types.Operator, ExportHelper):
 
     use_action_range: BoolProperty(
         name="Use action's frame range",
-        description="If available, use action's frame range instead of scene's",
+        description="If available, use action's frame range (rounded to nearest integer) "
+                    "instead of scene's",
         default=False
     )
 
@@ -292,36 +302,36 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types
     if are_flatbuffers_installed():
         return True
     if bpy.app.version >= (4, 2, 0) and not bpy.app.online_access:
-        msg = "Can't install flatbuffers library using pip - Internet access is not allowed."
+        msg = "Can't install flatbuffers library using pip - Online Access is not allowed."
+        if not bpy.app.online_access_overriden:
+            msg += "\nYou can enable it in Edit -> Preferences -> System -> Network."
         operator.report({"INFO"}, msg)
         return False
     modules_path = bpy.utils.user_resource("SCRIPTS", path="modules", create=True)
     site.addsitedir(modules_path)
-    context.window_manager.progress_begin(0, 3)
-    ensurepip.bootstrap()
+    context.window_manager.progress_begin(0, 2)
+    ensurepip.bootstrap(upgrade=True)
     context.window_manager.progress_update(1)
-    subprocess.call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
-    context.window_manager.progress_update(2)
     try:
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "--upgrade", "--target", modules_path,
              "flatbuffers"])
     except subprocess.SubprocessError as e:
-        context.window_manager.progress_update(3)
+        context.window_manager.progress_update(2)
         context.window_manager.progress_end()
         msg = (f"Failed to install flatbuffers library using pip. {e}\n"
-               f"To use this addon, put Python flatbuffers library folder for your platform"
+               f"To use this addon, install Python flatbuffers library for your platform"
                f"to this path: {modules_path}.")
         operator.report({"INFO"}, msg)
         return False
-    context.window_manager.progress_update(3)
+    context.window_manager.progress_update(2)
     context.window_manager.progress_end()
     if are_flatbuffers_installed():
         msg = "Successfully installed flatbuffers library."
         operator.report({"INFO"}, msg)
         return True
     msg = ("Failed to install flatbuffers library using pip."
-           f"To use this addon, put Python flatbuffers library folder for your platform"
+           f"To use this addon, install Python flatbuffers library for your platform"
            f"to this path: {modules_path}.")
     operator.report({"ERROR"}, msg)
     return False

@@ -3,29 +3,25 @@
 """
 
 import os
-import sys
 import math
 
 import bpy
 from mathutils import Vector, Quaternion, Matrix
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "."))
+from .GFLib.Anim.DynamicRotationTrack import DynamicRotationTrackT
+from .GFLib.Anim.DynamicVectorTrack import DynamicVectorTrackT
+from .GFLib.Anim.FixedRotationTrack import FixedRotationTrackT
+from .GFLib.Anim.FixedVectorTrack import FixedVectorTrackT
+from .GFLib.Anim.Framed16RotationTrack import Framed16RotationTrackT
+from .GFLib.Anim.Framed16VectorTrack import Framed16VectorTrackT
+from .GFLib.Anim.Framed8RotationTrack import Framed8RotationTrackT
+from .GFLib.Anim.Framed8VectorTrack import Framed8VectorTrackT
+from .GFLib.Anim.Animation import AnimationT
+from .GFLib.Anim.BoneTrack import BoneTrackT
+from .GFLib.Anim.Vec3 import Vec3T
+from .GFLib.Anim.sVec3 import sVec3T
 
-# pylint: disable=wrong-import-position, import-error, too-many-arguments, too-many-branches
-# pylint: disable=too-many-positional-arguments
-
-from GFLib.Anim.DynamicRotationTrack import DynamicRotationTrackT
-from GFLib.Anim.DynamicVectorTrack import DynamicVectorTrackT
-from GFLib.Anim.FixedRotationTrack import FixedRotationTrackT
-from GFLib.Anim.FixedVectorTrack import FixedVectorTrackT
-from GFLib.Anim.Framed16RotationTrack import Framed16RotationTrackT
-from GFLib.Anim.Framed16VectorTrack import Framed16VectorTrackT
-from GFLib.Anim.Framed8RotationTrack import Framed8RotationTrackT
-from GFLib.Anim.Framed8VectorTrack import Framed8VectorTrackT
-from GFLib.Anim.Animation import AnimationT
-from GFLib.Anim.BoneTrack import BoneTrackT
-from GFLib.Anim.Vec3 import Vec3T
-from GFLib.Anim.sVec3 import sVec3T
+# pylint: disable=too-many-arguments, too-many-branches, too-many-positional-arguments
 
 TransformType = Vector | Quaternion | None
 VectorTrackType = (FixedVectorTrackT | DynamicVectorTrackT | Framed16VectorTrackT |
@@ -38,7 +34,8 @@ def import_animation(
         context: bpy.types.Context,
         file_path: str,
         ignore_origin_location: bool,
-        frame_start: float
+        frame_start: int,
+        set_scene_end: bool
 ):
     """
     Imports animation from processing gfbanm file.
@@ -46,6 +43,7 @@ def import_animation(
     :param file_path: Path to gfbanm file.
     :param ignore_origin_location: Whether to ignore location transforms from Origin track.
     :param frame_start: Start frame.
+    :param set_scene_end: True if set scene's end frame to last frame of imported animation.
     """
     if context.object is None or context.object.type != "ARMATURE":
         raise OSError("Target Armature not selected.")
@@ -67,6 +65,9 @@ def import_animation(
         if anm.skeleton.tracks is None:
             raise OSError(f"{file_path} contains invalid skeleton.tracks chunk.")
         print(f"Tracks amount: {len(anm.skeleton.tracks)}.")
+        frame_current = bpy.context.scene.frame_current
+        if set_scene_end:
+            bpy.context.scene.frame_end = frame_start + anm.info.keyFrames - 1
         apply_animation_to_tracks(
             context,
             anim_name,
@@ -76,6 +77,8 @@ def import_animation(
             ignore_origin_location,
             frame_start
         )
+        if bpy.context.scene.frame_current != frame_current:
+            bpy.context.scene.frame_set(frame_current)
 
 
 def apply_animation_to_tracks(
@@ -85,7 +88,7 @@ def apply_animation_to_tracks(
         key_frames: int,
         tracks: list[BoneTrackT | None],
         ignore_origin_location: bool,
-        frame_start: float
+        frame_start: int
 ):
     """
     Applies animation to bones of selected Armature.
@@ -134,9 +137,9 @@ def apply_animation_to_tracks(
 
 def apply_track_transforms_to_posebone(
         pose_bone: bpy.types.PoseBone,
-        transforms: list[(Vector | None, Quaternion | None, Vector | None)],
+        transforms: list[tuple[Vector | None, Quaternion | None, Vector | None]],
         ignore_origin_location: bool,
-        frame_start: float
+        frame_start: int
 ):
     """
     Applies track transforms to PoseBone for every keyframe of animation.
@@ -187,24 +190,30 @@ def get_track_transforms(track: VectorTrackType | RotationTrackType | None, key_
     :return: List of transforms as tuples (x, y, z) for Vectors or Quaternions for Rotations.
     """
     assert key_frames > 0, "Keyframes amount is less than 1."
+    transforms = [None] * key_frames
     if track is None or getattr(track, "co", None) is None:
-        return [None] * key_frames
+        return transforms
     if isinstance(track, FixedVectorTrackT):
-        return [Vector((track.co.x, track.co.y, track.co.z)) if i == 0 else None for i in range(key_frames)]
-    if isinstance(track, DynamicVectorTrackT):
-        return [Vector((track.co[i].x, track.co[i].y, track.co[i].z)) if i < len(track.co) else None for i in
-                range(key_frames)]
-    if isinstance(track, (Framed16VectorTrackT, Framed8VectorTrackT)):
-        return [Vector((track.co[j].x, track.co[j].y, track.co[j].z)) if (j := list(track.frames).index(
+        transforms = [Vector((track.co.x, track.co.y, track.co.z)) if i == 0 else None for i in
+                      range(key_frames)]
+    elif isinstance(track, DynamicVectorTrackT):
+        transforms = [
+            Vector((track.co[i].x, track.co[i].y, track.co[i].z)) if i < len(track.co) else None for
+            i in range(key_frames)]
+    elif isinstance(track, (Framed16VectorTrackT, Framed8VectorTrackT)):
+        transforms = [Vector((track.co[j].x, track.co[j].y, track.co[j].z)) if (j := list(
+            track.frames).index(i) if i in track.frames else -1) > -1 else None for i in
+                      range(key_frames)]
+    elif isinstance(track, FixedRotationTrackT):
+        transforms = [get_quaternion_from_packed(track.co) if i == 0 else None for i in
+                      range(key_frames)]
+    elif isinstance(track, DynamicRotationTrackT):
+        transforms = [get_quaternion_from_packed(track.co[i]) if i < len(track.co) else None for i
+                      in range(key_frames)]
+    elif isinstance(track, (Framed16RotationTrackT, Framed8RotationTrackT)):
+        transforms = [get_quaternion_from_packed(track.co[j]) if (j := list(track.frames).index(
             i) if i in track.frames else -1) > -1 else None for i in range(key_frames)]
-    if isinstance(track, FixedRotationTrackT):
-        return [get_quaternion_from_packed(track.co) if i == 0 else None for i in range(key_frames)]
-    if isinstance(track, DynamicRotationTrackT):
-        return [get_quaternion_from_packed(track.co[i]) if i < len(track.co) else None for i in range(key_frames)]
-    if isinstance(track, (Framed16RotationTrackT, Framed8RotationTrackT)):
-        return [get_quaternion_from_packed(track.co[j]) if (j := list(track.frames).index(
-            i) if i in track.frames else -1) > -1 else None for i in range(key_frames)]
-    return [None] * key_frames
+    return transforms
 
 
 SCALE = 0x7FFF
@@ -254,5 +263,4 @@ def get_quaternion_from_packed(vec: Vec3T | sVec3T | None) -> Quaternion | None:
     """
     if vec is None:
         return None
-    quat = unpack_48bit_quaternion(vec.x, vec.y, vec.z)
-    return quat
+    return unpack_48bit_quaternion(vec.x, vec.y, vec.z)

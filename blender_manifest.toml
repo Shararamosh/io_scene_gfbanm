@@ -1,0 +1,15 @@
+schema_version = "1.0.0"
+id = "io_scene_gfbanm"
+version = "1.0.0"
+name = "Nintendo Switch Pokémon Animation (GFBANM/TRANM) format"
+tagline = "Import-Export Nintendo Switch Pokémon Animation data"
+maintainer = "Shararamosh, Mvit & ElChicoEevee"
+type = "add-on"
+website = "https://github.com/Shararamosh/io_scene_gfbanm"
+tags = ["Animation", "Import-Export"]
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+copyright = ["2024-2025 Shararamosh, Mvit & ElChicoEevee"]
+[permissions]
+network = "Downloading flatbuffers library using pip"
+files = "Import-Export GFBANM/TRANM from/to disk"
