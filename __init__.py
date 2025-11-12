@@ -57,6 +57,11 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         description="Set Scene playback range end frame to last frame of animation",
         default=False
     )
+    nla_import: BoolProperty(
+        name="Add to NLA",
+        description="Adds imported animation to the NLA",
+        default=False
+    )
 
     def execute(self, context: bpy.types.Context) -> set[str]:
         """
@@ -77,7 +82,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
                 try:
                     import_animation(context, file_path, self.ignore_origin_location,
                                      context.scene.frame_start if self.use_scene_start
-                                     else self.anim_offset, self.set_scene_end)
+                                     else self.anim_offset, self.set_scene_end, self.nla_import)
                 except OSError as e:
                     self.report({"INFO"}, f"Failed to import {file_path}. {e}")
                 else:
@@ -90,7 +95,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         try:
             import_animation(context, self.filepath, self.ignore_origin_location,
                              context.scene.frame_start if self.use_scene_start
-                             else self.anim_offset, self.set_scene_end)
+                             else self.anim_offset, self.set_scene_end, self.nla_import)
         except OSError as e:
             self.report({"ERROR"}, f"Failed to import {self.filepath}. {e}")
             return {"CANCELLED"}
@@ -104,6 +109,7 @@ class ImportGfbanm(bpy.types.Operator, ImportHelper):
         self.layout.prop(self, "ignore_origin_location")
         self.layout.prop(self, "use_scene_start")
         self.layout.prop(self, "set_scene_end")
+        self.layout.prop(self, "nla_import")
         sub = self.layout.column()
         sub.enabled = not self.use_scene_start
         sub.prop(self, "anim_offset")

@@ -22,6 +22,7 @@ from .GFLib.Anim.Vec3 import Vec3T
 from .GFLib.Anim.sVec3 import sVec3T
 
 # pylint: disable=too-many-arguments, too-many-branches, too-many-positional-arguments
+# pylint: disable=too-many-locals
 
 TransformType = Vector | Quaternion | None
 VectorTrackType = (FixedVectorTrackT | DynamicVectorTrackT | Framed16VectorTrackT |
@@ -35,7 +36,8 @@ def import_animation(
         file_path: str,
         ignore_origin_location: bool,
         frame_start: int,
-        set_scene_end: bool
+        set_scene_end: bool,
+        nla_import: bool
 ):
     """
     Imports animation from processing gfbanm file.
@@ -44,6 +46,7 @@ def import_animation(
     :param ignore_origin_location: Whether to ignore location transforms from Origin track.
     :param frame_start: Start frame.
     :param set_scene_end: True if set scene's end frame to last frame of imported animation.
+    :param nla_import: If True, the imported action will be pushed into the object's NLA as a strip.
     """
     if context.object is None or context.object.type != "ARMATURE":
         raise OSError("Target Armature not selected.")
@@ -75,7 +78,8 @@ def import_animation(
             anm.info.keyFrames,
             anm.skeleton.tracks,
             ignore_origin_location,
-            frame_start
+            frame_start,
+            nla_import
         )
         if bpy.context.scene.frame_current != frame_current:
             bpy.context.scene.frame_set(frame_current)
@@ -88,7 +92,8 @@ def apply_animation_to_tracks(
         key_frames: int,
         tracks: list[BoneTrackT | None],
         ignore_origin_location: bool,
-        frame_start: int
+        frame_start: int,
+        nla_import: bool
 ):
     """
     Applies animation to bones of selected Armature.
@@ -99,6 +104,7 @@ def apply_animation_to_tracks(
     :param tracks: List of BoneTrack objects.
     :param ignore_origin_location: Whether to ignore location transforms from Origin track.
     :param frame_start: Start frame.
+    :param nla_import: If True, the created action will be pushed into the object's NLA as a strip.
     """
     assert (context.object is not None and context.object.type == "ARMATURE"), \
         "Selected object is not Armature."
@@ -133,6 +139,25 @@ def apply_animation_to_tracks(
         context.window_manager.progress_update(i + 1)
     context.window_manager.progress_end()
     context.view_layer.update()
+
+    # If requested, push the newly-created action into NLA as a new track/strip.
+    if nla_import and action is not None:
+        print(f"Pushing action {anim_name} into NLA starting at frame {frame_start}.")
+        # Create an NLA track.
+        nla_track = context.object.animation_data.nla_tracks.new()
+        nla_track.name = anim_name
+        # Create strip and set its frames to match imported keyframes length.
+        strip = nla_track.strips.new(anim_name, frame_start, action)
+        strip.frame_end = frame_start + key_frames - 1
+        # Map the action frames to the strip.
+        strip.action_frame_start = 0.0
+        strip.action_frame_end = float(key_frames)
+        # Clear the active action so the object is not left with the action assigned.
+        context.object.animation_data.action = None
+        context.view_layer.update()
+    elif action is not None:
+        # Leave the action assigned as the active action (default behavior).
+        print(f"Action {anim_name} created and set as active action.")
 
 
 def apply_track_transforms_to_posebone(
