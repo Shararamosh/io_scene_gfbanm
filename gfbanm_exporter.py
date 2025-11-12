@@ -150,12 +150,13 @@ def vector_list_to_vector_track(vector_list: list[Vector]) -> VectorTrackType | 
         track = FixedVectorTrackT()
         track.co = vec3t_from_tuple(vector_list[indexes[0]].to_tuple())
         return track
-    if len(indexes) > 65535 or len(indexes) == len(vector_list):
+    max_index = max(indexes)
+    if len(indexes) == len(vector_list) or max_index > 65535:
         track = DynamicVectorTrackT()
         track.co = [vec3t_from_tuple(vector.to_tuple()) for vector in
                     vector_list]
         return track
-    if len(indexes) < 256:
+    if max_index < 256:
         track = Framed8VectorTrackT()
     else:
         track = Framed16VectorTrackT()
@@ -193,11 +194,12 @@ def quaternion_list_to_rotation_track(quat_list: list[Quaternion]) -> RotationTr
         track = FixedRotationTrackT()
         track.co = svec3t_from_tuple(pack_quaternion_to_48bit(quat_list[indexes[0]]))
         return track
-    if len(indexes) > 65535 or len(indexes) == len(quat_list):
+    max_index = max(indexes)
+    if len(indexes) == len(quat_list) or max_index > 65535:
         track = DynamicRotationTrackT()
         track.co = [svec3t_from_tuple(pack_quaternion_to_48bit(quat)) for quat in quat_list]
         return track
-    if len(indexes) < 256:
+    if max_index < 256:
         track = Framed8RotationTrackT()
     else:
         track = Framed16RotationTrackT()
