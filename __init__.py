@@ -328,7 +328,15 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types
     modules_path = bpy.utils.user_resource("SCRIPTS", path="modules", create=True)
     site.addsitedir(modules_path)
     context.window_manager.progress_begin(0, 2)
-    ensurepip.bootstrap(upgrade=True)
+    if not is_pip_installed():
+        try:
+            ensurepip.bootstrap(upgrade=True)
+        except subprocess.CalledProcessError as e:
+            context.window_manager.progress_update(1)
+            context.window_manager.progress_end()
+            msg = f"Failed to bootstrap pip for Blender's Python installation. {e}"
+            operator.report({"ERROR"}, msg)
+            return False
     context.window_manager.progress_update(1)
     try:
         subprocess.check_call(
@@ -340,7 +348,7 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types
         msg = (f"Failed to install flatbuffers library using pip. {e}\n"
                f"To use this addon, install Python flatbuffers library for your platform"
                f"to this path: {modules_path}.")
-        operator.report({"INFO"}, msg)
+        operator.report({"ERROR"}, msg)
         return False
     context.window_manager.progress_update(2)
     context.window_manager.progress_end()
@@ -354,7 +362,6 @@ def attempt_install_flatbuffers(operator: bpy.types.Operator, context: bpy.types
     operator.report({"ERROR"}, msg)
     return False
 
-
 def are_flatbuffers_installed() -> bool:
     """
     Checks if flatbuffers library is installed.
@@ -363,6 +370,17 @@ def are_flatbuffers_installed() -> bool:
     try:
         import_module("flatbuffers")
     except ModuleNotFoundError:
+        return False
+    return True
+
+def is_pip_installed() -> bool:
+    """
+    Checks if pip module is installed.
+    :return: True or False.
+    """
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "--version"])
+    except subprocess.CalledProcessError:
         return False
     return True
 
